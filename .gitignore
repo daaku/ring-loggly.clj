@@ -1,0 +1,6 @@
+*.jar
+.cake
+.lein-failures
+classes
+lib
+pom.xml
