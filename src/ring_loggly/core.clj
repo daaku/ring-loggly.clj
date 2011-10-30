@@ -3,14 +3,14 @@
   {:author "Naitik Shah"}
   (:require [http.async.client :as c]))
 
-(defn- send-single [client input-url record]
+(defn- send-one [client input-url record]
   (c/POST client input-url
           :headers {"Content-Type" "text/plain"}
           :body (.format (java.util.logging.SimpleFormatter.) record)))
 
-(defn- send-logs [input-url logs]
+(defn- send-all [input-url logs]
   (with-open [client (c/create-client)]
-    (dorun (map c/await (doall (map #(send-single client input-url %) logs))))))
+    (dorun (map c/await (doall (map #(send-one client input-url %) logs))))))
 
 (gen-class
   :name ring-loggly.core.handler
@@ -28,7 +28,7 @@
               (let [logs @pending-logs]
                 (if (and (not (empty? logs))
                          (compare-and-set! pending-logs logs []))
-                  (send-logs input-url logs)))))
+                  (send-all input-url logs)))))
     [[] {:thread-active thread-active :pending-logs pending-logs}]))
 
 (defn- handler-publish [this record]
