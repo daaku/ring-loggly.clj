@@ -9,15 +9,18 @@
                        :warn  (.intValue java.util.logging.Level/WARNING)
                        :error (.intValue java.util.logging.Level/SEVERE)
                        :fatal (.intValue java.util.logging.Level/SEVERE)))
-(def *global-level* ^{:dynamic true} (atom :info))
-(def *named-levels* ^{:dynamic true} (atom {}))
+(def ^{:dynamic true} *global-level* :info)
+(def ^{:dynamic true} *named-levels* {})
 
-(defn set-global-level! [level] (reset! *global-level* level))
-(defn set-named-level! [name level] (swap! *named-levels* assoc name level))
+(defn set-global-level! [level]
+  (alter-var-root #'*global-level* (constantly level)))
+
+(defn set-named-level! [name level]
+  (alter-var-root #'*named-levels* assoc name level))
 
 (defn- log-record? [record]
   (>= (.intValue (.getLevel record))
-      (levels (or (@*named-levels* (.getLoggerName record)) @*global-level*))))
+      (levels (or (*named-levels* (.getLoggerName record)) *global-level*))))
 
 (defn- send-one [client input-url record]
   (c/POST client input-url
@@ -58,8 +61,8 @@
 
 (defn wrap-loggly [input-url interval app]
   (.reset (java.util.logging.LogManager/getLogManager))
-  (.addHandler (java.util.logging.Logger/getLogger "")
-               (ring-loggly.core.handler. input-url interval))
   (set-global-level! :info)
   (set-named-level!
-    "com.ning.http.client.providers.netty.NettyAsyncHttpProvider" :warn))
+    "com.ning.http.client.providers.netty.NettyAsyncHttpProvider" :warn)
+  (.addHandler (java.util.logging.Logger/getLogger "")
+               (ring-loggly.core.handler. input-url interval)))
