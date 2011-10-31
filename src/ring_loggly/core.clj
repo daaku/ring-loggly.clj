@@ -3,6 +3,22 @@
   {:author "Naitik Shah"}
   (:require [http.async.client :as c]))
 
+(def levels (array-map :trace (.intValue java.util.logging.Level/FINEST)
+                       :debug (.intValue java.util.logging.Level/FINE)
+                       :info  (.intValue java.util.logging.Level/INFO)
+                       :warn  (.intValue java.util.logging.Level/WARNING)
+                       :error (.intValue java.util.logging.Level/SEVERE)
+                       :fatal (.intValue java.util.logging.Level/SEVERE)))
+(def *global-level* ^{:dynamic true} (atom :info))
+(def *named-levels* ^{:dynamic true} (atom {}))
+
+(defn set-global-level! [level] (reset! *global-level* level))
+(defn set-named-level! [name level] (swap! *named-levels* assoc name level))
+
+(defn- log-record? [record]
+  (>= (.intValue (.getLevel record))
+      (levels (or (@*named-levels* (.getLoggerName record)) @*global-level*))))
+
 (defn- send-one [client input-url record]
   (c/POST client input-url
           :headers {"Content-Type" "text/plain"}
@@ -32,7 +48,8 @@
     [[] {:thread-active thread-active :pending-logs pending-logs}]))
 
 (defn- handler-publish [this record]
-  (swap! (:pending-logs (.state this)) conj record))
+  (if (log-record? record)
+    (swap! (:pending-logs (.state this)) conj record)))
 
 (defn- handler-flush [this])
 
@@ -42,4 +59,7 @@
 (defn wrap-loggly [input-url interval app]
   (.reset (java.util.logging.LogManager/getLogManager))
   (.addHandler (java.util.logging.Logger/getLogger "")
-               (ring-loggly.core.handler. input-url interval)))
+               (ring-loggly.core.handler. input-url interval))
+  (set-global-level! :info)
+  (set-named-level!
+    "com.ning.http.client.providers.netty.NettyAsyncHttpProvider" :warn))
